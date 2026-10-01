@@ -3,6 +3,7 @@
 import json
 from datetime import datetime, timezone
 from functools import lru_cache
+from urllib.parse import quote, unquote
 
 import pandas as pd
 from sqlalchemy import (
@@ -135,12 +136,36 @@ def now():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+def clean_db_url(url: str) -> str:
+    """Tidy a pasted Postgres URL: strip spaces and percent-encode the password, so
+    passwords containing @ ! # / : etc. work as typed."""
+    url = url.strip()
+    if url.startswith("sqlite") or "://" not in url:
+        return url
+    scheme, rest = url.split("://", 1)
+    if scheme in ("postgres", "postgresql"):
+        scheme = "postgresql+psycopg2"
+    if "@" not in rest:
+        return f"{scheme}://{rest}"
+    creds, host = rest.rsplit("@", 1)  # the LAST @ separates the password from the host
+    user, _, password = creds.partition(":")
+    return f"{scheme}://{user.strip()}:{quote(unquote(password.strip()), safe='')}@{host.strip()}"
+
+
+def url_hint(url: str):
+    """Spot the common Supabase mistake: the Direct connection host is IPv6-only, which
+    Streamlit Cloud can't reach."""
+    host = url.rsplit("@", 1)[-1]
+    if host.startswith("db.") and ".supabase.co" in host:
+        return ("This is Supabase's *Direct connection* link, which Streamlit Cloud can't reach. "
+                "In Supabase click **Connect** → copy the **Session pooler** link instead "
+                "(host ends in pooler.supabase.com).")
+    return None
+
+
 @lru_cache(maxsize=4)
 def _engine_for(url: str):
-    if url.startswith("postgres://"):
-        url = "postgresql+psycopg2://" + url[len("postgres://"):]
-    elif url.startswith("postgresql://"):
-        url = "postgresql+psycopg2://" + url[len("postgresql://"):]
+    url = clean_db_url(url)
     eng = create_engine(url, pool_pre_ping=True)
     metadata.create_all(eng)
     return eng
@@ -158,7 +183,13 @@ def check_connection(url: str):
             return None
     except Exception as e:  # noqa: BLE001 - show any driver error to the user
         _engine_for.cache_clear()
-        return str(e).splitlines()[0][:300]
+        msg = str(e).splitlines()[0][:300]
+        # Never echo the password back on screen.
+        _, _, pwd = url.rsplit("@", 1)[0].partition("://")[2].partition(":")
+        if pwd:
+            msg = msg.replace(pwd, "•••").replace(quote(unquote(pwd), safe=""), "•••")
+        hint = url_hint(url)
+        return f"{msg}\n\n{hint}" if hint else msg
 
 
 def is_sqlite():

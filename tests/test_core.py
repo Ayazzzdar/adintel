@@ -136,3 +136,21 @@ def test_settings_roundtrip():
     assert pipeline.get_keywords() == pipeline.DEFAULT_KEYWORDS
     db.set_setting("discovery_keywords", ["a", "b"])
     assert pipeline.get_keywords() == ["a", "b"]
+
+
+def test_clean_db_url_encodes_special_password():
+    url = db.clean_db_url("postgresql://postgres.abc: Pa$s!@1word@aws-0-ap.pooler.supabase.com:5432/postgres ")
+    assert url == "postgresql+psycopg2://postgres.abc:Pa%24s%21%401word@aws-0-ap.pooler.supabase.com:5432/postgres"
+    from sqlalchemy.engine import make_url
+    parsed = make_url(url)
+    assert parsed.password == "Pa$s!@1word" and parsed.host == "aws-0-ap.pooler.supabase.com"
+    # Already-encoded passwords are not double-encoded.
+    assert db.clean_db_url(url) == url
+    assert db.clean_db_url("sqlite:///x.db") == "sqlite:///x.db"
+
+
+def test_direct_connection_hint_and_password_hidden():
+    assert db.url_hint("postgresql://u:p@db.abc.supabase.co:5432/postgres")
+    assert db.url_hint("postgresql://u:p@aws-0-ap.pooler.supabase.com:5432/postgres") is None
+    msg = db.check_connection("postgresql://postgres:S3cret!@1@127.0.0.1:1/postgres")
+    assert msg and "S3cret" not in msg
