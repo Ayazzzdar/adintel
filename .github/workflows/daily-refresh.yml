@@ -1,0 +1,27 @@
+name: Daily ad refresh
+
+on:
+  schedule:
+    - cron: "17 20 * * *"   # 20:17 UTC = ~6-7am Sydney
+  workflow_dispatch:
+    inputs:
+      discover:
+        description: "Also run competitor discovery"
+        type: boolean
+        default: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m scripts.refresh ${{ inputs.discover && '--discover' || '' }}
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
