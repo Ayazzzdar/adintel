@@ -52,7 +52,7 @@ Create a key at platform.claude.com → API keys. Each ad breakdown or remix bri
      the database or GitHub.
    - After you refresh or close the page, you paste them again.
    - To change them later, use **🔑 Connections** in the sidebar or **⚙️ Settings**.
-4. On first load, the app seeds your 4 competitors and The Day Archive's own page.
+4. On first load, the app loads your 4 starter competitors.
 5. Go to **🏷️ Tracked Brands** and click **Refresh all active brands**.
 
 If you'd rather not paste keys each time, you can still put them in Streamlit's

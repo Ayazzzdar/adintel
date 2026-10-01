@@ -72,7 +72,7 @@ def test_relevance_filters_spam():
 def test_refresh_and_discovery_end_to_end(monkeypatch):
     pipeline.seed_defaults()
     brands = db.list_brands(active_only=True).to_dict("records")
-    assert len(brands) == 5
+    assert len(brands) == 4
 
     def fake_run(urls, **kw):
         out = []

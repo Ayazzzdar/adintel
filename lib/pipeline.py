@@ -65,6 +65,9 @@ def get_countries():
     return db.get_setting("discovery_countries", DEFAULT_COUNTRIES)
 
 
+OWN_PAGE_ID = "1110400352150378"  # The Day Archive's Facebook page
+
+
 def seed_defaults():
     """First run: load the starter competitor list."""
     if db.get_setting("seeded"):
@@ -74,11 +77,9 @@ def seed_defaults():
         ("A Day In History USA", "https://www.facebook.com/adayinhistoryusa/", "competitor"),
         ("A Day In History UK", "https://www.facebook.com/adayinhistory.co.uk/", "competitor"),
         ("The Night Sky", "https://www.facebook.com/thenightskyio/", "competitor"),
-        ("The Day Archive (us)", None, "own"),
     ]
     for name, url, kind in starters:
-        page_id = "1110400352150378" if kind == "own" else None
-        db.add_brand(name, fb_url=url, page_id=page_id, kind=kind)
+        db.add_brand(name, fb_url=url, kind=kind)
     db.set_setting("seeded", True)
 
 
@@ -214,6 +215,7 @@ def run_discovery(keywords, countries, per_search=40, progress=None):
 
     tracked = db.list_brands()
     exclude = set(tracked["page_id"].dropna().astype(str)) if not tracked.empty else set()
+    exclude.add(OWN_PAGE_ID)  # never suggest ourselves as a competitor
     dismissed = db.list_discovered("dismissed")
     exclude |= set(dismissed["page_id"].astype(str)) if not dismissed.empty else set()
     rows = score_pages(items, url_to_keyword, exclude)
