@@ -135,9 +135,8 @@ def now():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-@lru_cache(maxsize=1)
-def engine():
-    url = config.get("DATABASE_URL") or "sqlite:///ad_intel.db"
+@lru_cache(maxsize=4)
+def _engine_for(url: str):
     if url.startswith("postgres://"):
         url = "postgresql+psycopg2://" + url[len("postgres://"):]
     elif url.startswith("postgresql://"):
@@ -145,6 +144,21 @@ def engine():
     eng = create_engine(url, pool_pre_ping=True)
     metadata.create_all(eng)
     return eng
+
+
+def engine():
+    """Engine for the current DATABASE_URL (which may be pasted in-app per session)."""
+    return _engine_for(config.get("DATABASE_URL") or "sqlite:///ad_intel.db")
+
+
+def check_connection(url: str):
+    """Return None if the database URL works, else an error message."""
+    try:
+        with _engine_for(url).connect():
+            return None
+    except Exception as e:  # noqa: BLE001 - show any driver error to the user
+        _engine_for.cache_clear()
+        return str(e).splitlines()[0][:300]
 
 
 def is_sqlite():

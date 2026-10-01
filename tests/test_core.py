@@ -14,7 +14,7 @@ from tests.fixtures import DCO_AD, SPAM_AD, VIDEO_AD  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def fresh_db():
-    db.engine.cache_clear()
+    db._engine_for.cache_clear()
     yield
 
 

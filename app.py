@@ -5,7 +5,7 @@ Run locally:  streamlit run app.py
 
 import streamlit as st
 
-from lib import pipeline
+from lib import keys, pipeline
 
 st.set_page_config(page_title="Ad Intel · The Day Archive", page_icon="🔎", layout="wide")
 
@@ -28,6 +28,8 @@ def _password_gate():
 
 
 _password_gate()
+keys.connect_gate()
+keys.sidebar_status()
 pipeline.seed_defaults()
 
 pages = {
