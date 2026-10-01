@@ -164,3 +164,66 @@ def test_own_brand_never_stored_or_suggested(monkeypatch):
     monkeypatch.setattr(apify, "run", lambda urls, **kw: [{**own, "url": u} for u in urls])
     pipeline.run_discovery(["day you were born"], ["AU"])
     assert db.list_discovered().empty
+
+
+def test_apify_run_polls_with_no_timeout(monkeypatch):
+    """The run must be started with timeout=0 and polled until it finishes."""
+    from lib import apify
+    monkeypatch.setattr(apify.config, "get", lambda name, default=None: "tok")
+    posted, polls = {}, {"n": 0}
+
+    class Resp:
+        status_code = 201
+
+        def __init__(self, payload):
+            self._payload = payload
+
+        def json(self):
+            return self._payload
+
+    def fake_post(url, params=None, json=None, timeout=None):
+        posted["params"], posted["json"], posted["url"] = params, json, url
+        return Resp({"data": {"id": "RUN1", "status": "RUNNING", "defaultDatasetId": "DS1"}})
+
+    def fake_get(url, params=None, timeout=None):
+        if "/actor-runs/" in url:
+            polls["n"] += 1
+            status = "RUNNING" if polls["n"] < 3 else "SUCCEEDED"
+            assert params["waitForFinish"] == 60  # server-side long-poll, not a client timeout
+            return Resp({"data": {"id": "RUN1", "status": status, "defaultDatasetId": "DS1",
+                                  "stats": {"datasetItemCount": 10 * polls["n"]}}})
+        return Resp([VIDEO_AD, {"error": "Ads not found"}])
+
+    monkeypatch.setattr(apify.requests, "post", fake_post)
+    monkeypatch.setattr(apify.requests, "get", fake_get)
+    notes = []
+    items = apify.run(["https://www.facebook.com/mapiful/"], progress=notes.append)
+
+    assert posted["params"]["timeout"] == 0           # no run timeout on Apify's side
+    assert posted["url"].endswith(f"/acts/{apify.ACTOR}/runs")
+    assert polls["n"] == 3                            # polled until SUCCEEDED
+    assert [i["ad_archive_id"] for i in items] == ["1869351803954821"]  # error rows dropped
+    assert any("20 ads so far" in n for n in notes)
+
+
+def test_apify_run_gives_up_after_max_wait(monkeypatch):
+    from lib import apify
+    monkeypatch.setattr(apify.config, "get", lambda name, default=None: "tok")
+
+    class Resp:
+        status_code = 201
+
+        def __init__(self, payload):
+            self._payload = payload
+
+        def json(self):
+            return self._payload
+
+    monkeypatch.setattr(apify.requests, "post", lambda *a, **k: Resp(
+        {"data": {"id": "RUN1", "status": "RUNNING", "defaultDatasetId": "DS1"}}))
+    monkeypatch.setattr(apify.requests, "get", lambda *a, **k: Resp(
+        {"data": {"id": "RUN1", "status": "RUNNING", "defaultDatasetId": "DS1"}}))
+    clock = iter([0, 10_000, 20_000])
+    monkeypatch.setattr(apify.time, "monotonic", lambda: next(clock))
+    with pytest.raises(apify.ApifyError, match="Still running"):
+        apify.run(["u"], max_wait_minutes=60)

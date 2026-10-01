@@ -1,0 +1,6 @@
+[server]
+# Long Apify scrapes can run for many minutes; don't drop the browser connection.
+maxMessageSize = 300
+
+[browser]
+gatherUsageStats = false

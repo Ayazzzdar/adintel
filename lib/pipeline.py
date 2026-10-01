@@ -101,7 +101,7 @@ def refresh_brands(brand_rows, limit_per_brand=50, progress=None):
     url_to_brand = {_brand_source_url(b): b for b in brand_rows}
     if progress:
         progress(f"Scraping {len(url_to_brand)} brand(s) via Apify…")
-    items = apify.run(list(url_to_brand), limit_per_source=limit_per_brand)
+    items = apify.run(list(url_to_brand), limit_per_source=limit_per_brand, progress=progress)
 
     by_brand = defaultdict(list)
     for it in items:
@@ -208,7 +208,7 @@ def run_discovery(keywords, countries, per_search=40, progress=None):
             url_to_keyword[apify.keyword_search_url(kw, c)] = kw
     if progress:
         progress(f"Running {len(url_to_keyword)} Ad Library searches via Apify…")
-    items = apify.run(list(url_to_keyword), limit_per_source=per_search)
+    items = apify.run(list(url_to_keyword), limit_per_source=per_search, progress=progress)
 
     db.upsert_ads([normalize(it, source=f"search:{url_to_keyword.get(it.get('url'), '?')}")
                    for it in items])
