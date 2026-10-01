@@ -10,9 +10,11 @@ tab_brands, tab_ideas = st.tabs(["🕵️ Find new competitors", "💡 Idea expl
 
 # ---------------------------------------------------------------------------
 with tab_brands:
-    st.caption("Searches the whole Meta Ad Library for phrases buyers in our niche see, then "
-               "ranks every advertiser by how closely their ads match what we sell. "
-               "No need to know the brands in advance.")
+    st.caption("Searches the **whole** Meta Ad Library — not just the brands you track — for "
+               "phrases buyers in our niche see, then ranks every advertiser found by how "
+               "closely their ads match what we sell. Brands you already track (and ones you've "
+               "dismissed) are left out, so what's left is new competitors to consider. "
+               "Searches run in small batches and save as they go.")
 
     keywords = pipeline.get_keywords()
     countries = pipeline.get_countries()

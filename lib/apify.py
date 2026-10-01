@@ -39,42 +39,62 @@ def _get(url, token, **params):
 
 
 def run(urls, limit_per_source=50, total=None, active="active", country="ALL",
-        sort_by="impressions_desc", period="", progress=None, max_wait_minutes=60):
-    """Start the actor with NO run timeout, wait for it to finish, return the dataset items.
+        sort_by="impressions_desc", period="", progress=None, max_wait_minutes=25,
+        max_spend_usd=None):
+    """Start the actor, wait for it, return the dataset items.
 
-    The run is started asynchronously and polled, so neither Apify's run timeout nor the
-    5-minute limit of Apify's synchronous endpoint can cut a big scrape short.
+    The run is started asynchronously and polled, so Apify's 5-minute synchronous endpoint
+    can't cut a scrape short. Three limits keep it from running away:
+      * count          — hard cap on total ads, so the actor stops instead of crawling on
+      * maxTotalChargeUsd — hard cap on spend for this run
+      * timeout        — generous but finite; the run is also aborted if we stop waiting
     """
     token = config.get("APIFY_TOKEN")
     if not token:
         raise ApifyError("APIFY_TOKEN is not set — paste it on the connect screen.")
+    urls = list(urls)
+    # Without `count` the actor keeps crawling every URL; cap it at what we actually want.
+    total = int(total or limit_per_source * len(urls))
     payload = {
         "urls": [{"url": u} for u in urls],
         "limitPerSource": int(limit_per_source),
+        "count": total,
         "scrapePageAds.activeStatus": active,
         "scrapePageAds.countryCode": country,
         "scrapePageAds.sortBy": sort_by,
     }
-    if total:
-        payload["count"] = int(total)
     if period:
         payload["scrapePageAds.period"] = period
 
-    # timeout=0 -> no run timeout on Apify's side.
-    resp = requests.post(f"{BASE}/acts/{ACTOR}/runs", params={"token": token, "timeout": 0},
-                         json=payload, timeout=60)
+    params = {
+        "token": token,
+        "timeout": int(max_wait_minutes * 60),
+        # ~$0.75 per 1000 ads + start fee; leave headroom but never run away with spend.
+        "maxTotalChargeUsd": round(max_spend_usd or max(total * 0.00075 * 2, 1.0), 2),
+    }
+    resp = requests.post(f"{BASE}/acts/{ACTOR}/runs", params=params, json=payload, timeout=60)
     if resp.status_code >= 400:
         raise ApifyError(f"Apify returned {resp.status_code}: {resp.text[:300]}")
     run_info = resp.json()["data"]
     run_id = run_info["id"]
     if progress:
-        progress(f"Apify run started ({run_id}) — this can take a few minutes…")
+        progress(f"Apify run {run_id} started — up to {total} ads, "
+                 f"max ${params['maxTotalChargeUsd']}.")
 
     deadline = time.monotonic() + max_wait_minutes * 60
     while run_info["status"] not in TERMINAL:
         if time.monotonic() > deadline:
-            raise ApifyError(f"Still running after {max_wait_minutes} min — check run {run_id} "
-                             "in the Apify console; results will be there when it finishes.")
+            # Stop the run so it can't keep scraping (and charging) in the background,
+            # then keep whatever it collected.
+            try:
+                requests.post(f"{BASE}/actor-runs/{run_id}/abort", params={"token": token},
+                              timeout=30)
+            except requests.RequestException:
+                pass
+            if progress:
+                progress(f"Stopped run {run_id} after {max_wait_minutes} min — "
+                         "keeping the ads it collected.")
+            break
         # waitForFinish blocks server-side for up to 60s, so this is a cheap long-poll.
         run_info = _get(f"{BASE}/actor-runs/{run_id}", token, waitForFinish=60)["data"]
         if progress and run_info["status"] not in TERMINAL:

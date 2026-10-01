@@ -200,27 +200,44 @@ def score_pages(items, url_to_keyword, exclude_page_ids):
     return rows
 
 
+SEARCHES_PER_RUN = 5  # keep each Apify run short so results land steadily
+
+
 def run_discovery(keywords, countries, per_search=40, progress=None):
-    """Search the Ad Library by keyword; save the ads (idea feed) and candidate brands."""
+    """Search the Ad Library by keyword; save the ads (idea feed) and candidate brands.
+
+    Searches run in small batches and each batch is saved as soon as it finishes, so a slow
+    or aborted run still leaves you with everything found up to that point.
+    """
     url_to_keyword = {}
     for kw in keywords:
         for c in countries:
             url_to_keyword[apify.keyword_search_url(kw, c)] = kw
-    if progress:
-        progress(f"Running {len(url_to_keyword)} Ad Library searches via Apify…")
-    items = apify.run(list(url_to_keyword), limit_per_source=per_search, progress=progress)
-
-    db.upsert_ads([normalize(it, source=f"search:{url_to_keyword.get(it.get('url'), '?')}")
-                   for it in items])
 
     tracked = db.list_brands()
     exclude = set(tracked["page_id"].dropna().astype(str)) if not tracked.empty else set()
     exclude.add(OWN_PAGE_ID)  # never suggest ourselves as a competitor
     dismissed = db.list_discovered("dismissed")
     exclude |= set(dismissed["page_id"].astype(str)) if not dismissed.empty else set()
-    rows = score_pages(items, url_to_keyword, exclude)
-    db.upsert_discovered(rows)
-    return {"ads": len(items), "brands": len(rows)}
+
+    urls = list(url_to_keyword)
+    batches = [urls[i:i + SEARCHES_PER_RUN] for i in range(0, len(urls), SEARCHES_PER_RUN)]
+    total_ads, pages = 0, set()
+    for n, batch in enumerate(batches, 1):
+        if progress:
+            progress(f"Batch {n}/{len(batches)}: {len(batch)} searches "
+                     f"({', '.join(sorted({url_to_keyword[u] for u in batch}))})")
+        items = apify.run(batch, limit_per_source=per_search, progress=progress)
+        db.upsert_ads([normalize(it, source=f"search:{url_to_keyword.get(it.get('url'), '?')}")
+                       for it in items])
+        rows = score_pages(items, url_to_keyword, exclude)
+        db.upsert_discovered(rows)
+        total_ads += len(items)
+        pages |= {r["page_id"] for r in rows}
+        if progress:
+            progress(f"Saved {len(items)} ads, {len(rows)} advertisers "
+                     f"({total_ads} ads / {len(pages)} advertisers so far)")
+    return {"ads": total_ads, "brands": len(pages)}
 
 
 def track_discovered(page_id, kind="competitor"):

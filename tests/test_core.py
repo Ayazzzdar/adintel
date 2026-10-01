@@ -199,14 +199,16 @@ def test_apify_run_polls_with_no_timeout(monkeypatch):
     notes = []
     items = apify.run(["https://www.facebook.com/mapiful/"], progress=notes.append)
 
-    assert posted["params"]["timeout"] == 0           # no run timeout on Apify's side
+    assert posted["params"]["timeout"] == 25 * 60     # finite run timeout
+    assert posted["params"]["maxTotalChargeUsd"] >= 1  # spend cap always set
+    assert posted["json"]["count"] == 50               # hard total cap so it can't crawl on
     assert posted["url"].endswith(f"/acts/{apify.ACTOR}/runs")
     assert polls["n"] == 3                            # polled until SUCCEEDED
     assert [i["ad_archive_id"] for i in items] == ["1869351803954821"]  # error rows dropped
     assert any("20 ads so far" in n for n in notes)
 
 
-def test_apify_run_gives_up_after_max_wait(monkeypatch):
+def test_apify_run_aborts_after_max_wait(monkeypatch):
     from lib import apify
     monkeypatch.setattr(apify.config, "get", lambda name, default=None: "tok")
 
@@ -223,7 +225,36 @@ def test_apify_run_gives_up_after_max_wait(monkeypatch):
         {"data": {"id": "RUN1", "status": "RUNNING", "defaultDatasetId": "DS1"}}))
     monkeypatch.setattr(apify.requests, "get", lambda *a, **k: Resp(
         {"data": {"id": "RUN1", "status": "RUNNING", "defaultDatasetId": "DS1"}}))
+    aborted = []
+    monkeypatch.setattr(apify.requests, "post", lambda url, **k: (
+        aborted.append(url) if url.endswith("/abort") else None) or Resp(
+        {"data": {"id": "RUN1", "status": "RUNNING", "defaultDatasetId": "DS1"}}))
     clock = iter([0, 10_000, 20_000])
     monkeypatch.setattr(apify.time, "monotonic", lambda: next(clock))
-    with pytest.raises(apify.ApifyError, match="Still running"):
-        apify.run(["u"], max_wait_minutes=60)
+    notes = []
+    items = apify.run(["u"], max_wait_minutes=60, progress=notes.append)
+    assert any(u.endswith("/actor-runs/RUN1/abort") for u in aborted)  # run stopped, not left going
+    assert items == []
+    assert any("Stopped run" in n for n in notes)
+
+
+def test_discovery_saves_each_batch_before_a_later_failure(monkeypatch):
+    """A batch that finished must stay saved even if a later batch dies."""
+    pipeline.seed_defaults()
+    calls = {"n": 0}
+
+    def flaky_run(urls, **kw):
+        calls["n"] += 1
+        if calls["n"] > 2:
+            raise apify.ApifyError("Apify fell over")
+        return [{**copy.deepcopy(VIDEO_AD), "ad_archive_id": f"b{calls['n']}",
+                 "page_id": f"p{calls['n']}", "page_name": f"Brand {calls['n']}", "url": urls[0]}]
+
+    monkeypatch.setattr(apify, "run", flaky_run)
+    keywords = [f"kw{i}" for i in range(12)]   # 12 searches -> 3 batches of 5
+    with pytest.raises(apify.ApifyError):
+        pipeline.run_discovery(keywords, ["AU"])
+    assert calls["n"] == 3                      # batched, not one giant run
+    saved = db.list_discovered()
+    assert set(saved["page_id"]) == {"p1", "p2"}   # first two batches persisted
+    assert len(db.all_ads()) == 2
