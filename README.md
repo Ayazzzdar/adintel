@@ -45,12 +45,25 @@ Create a key at platform.claude.com → API keys. Each ad breakdown or remix bri
 
 ### 4. Deploy on Streamlit Community Cloud
 1. Go to share.streamlit.io → **Create app** and pick this repo, branch `main`, file `app.py`.
-2. Under **Advanced settings → Secrets**, paste the contents of
-   `.streamlit/secrets.toml.example` with your real values filled in.
-3. Deploy. On first load, the app seeds your 4 competitors and The Day Archive's own page.
-4. Go to **🏷️ Tracked Brands** and click **Refresh all active brands**.
+2. Deploy. You don't need to set any secrets.
+3. When the app opens, it shows a **Connect your accounts** screen. Paste your Apify token
+   (required), and optionally your Claude key and Supabase URL, then click **Connect & start**.
+   - The keys stay only in that browser session's memory. They're never saved to the app,
+     the database or GitHub.
+   - After you refresh or close the page, you paste them again.
+   - To change them later, use **🔑 Connections** in the sidebar or **⚙️ Settings**.
+4. On first load, the app seeds your 4 competitors and The Day Archive's own page.
+5. Go to **🏷️ Tracked Brands** and click **Refresh all active brands**.
 
-### 5. Daily auto-refresh (GitHub Actions)
+If you'd rather not paste keys each time, you can still put them in Streamlit's
+**Settings → Secrets** (format in `.streamlit/secrets.toml.example`). The connect screen is
+then skipped.
+
+### 5. Daily auto-refresh (GitHub Actions, optional)
+Without this, ads update whenever you click **Refresh** in the app. The scheduled job runs on
+GitHub's servers while the app is closed, so it can't use keys pasted into the app. It needs
+its own copy stored as encrypted GitHub secrets. It also needs Supabase, so it has a database
+to write to.
 1. In the repo, go to Settings → Secrets and variables → Actions → **New repository secret**.
 2. Add `APIFY_TOKEN` and `DATABASE_URL` (the same values as above).
 3. The workflow in `.github/workflows/daily-refresh.yml` runs every morning (AU time). It also
