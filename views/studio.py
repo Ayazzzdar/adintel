@@ -2,7 +2,7 @@ import json
 
 import streamlit as st
 
-from lib import ai, db, ui
+from lib import ai, db, pipeline, ui
 
 ui.setup("🎬 Remix Studio")
 st.caption("Your Day Archive versions of winning ads. Copy the Higgsfield hand-off into a Claude "
@@ -45,7 +45,11 @@ for _, row in view.iterrows():
 
         t1, t2, t3 = st.tabs(["🤖 Higgsfield hand-off", "🖼️ Image prompt", "🎥 Video prompt"])
         t1.caption("Copy this into Claude (with the Higgsfield connector) to generate the creative.")
-        t1.code(ai.higgsfield_handoff(b, bid), language=None, wrap_lines=True)
+        if not pipeline.get_product_refs():
+            t1.warning("No product reference photos saved — add them in ⚙️ Settings, or the "
+                       "model will invent a print that looks nothing like ours.")
+        t1.code(ai.higgsfield_handoff(b, bid, pipeline.get_product_refs()), language=None,
+                wrap_lines=True)
         t2.code(b["image_prompt"], language=None, wrap_lines=True)
         t3.code(b["video_prompt"], language=None, wrap_lines=True)
 

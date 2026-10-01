@@ -53,6 +53,11 @@ GOOD_CATEGORIES = {"gifts", "shopping & retail", "art", "e-commerce website", "p
                    "home decor", "product/service", "brand", "personal blog", "website"}
 
 
+def get_product_refs():
+    """URLs of real product photos, passed to the image/video model as references."""
+    return db.get_setting("product_refs", [])
+
+
 def get_profile():
     return db.get_setting("brand_profile", DEFAULT_BRAND_PROFILE)
 

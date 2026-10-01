@@ -269,3 +269,21 @@ def test_null_text_columns_are_safe_to_concatenate():
     assert ui.txt(row, "sample_title")[:280] + " — " + ui.txt(row, "sample_body")[:280] == " — "
     assert ui.txt(row, "missing", "(none yet)") == "(none yet)"
     assert ui.txt(row, "n") == "1"
+
+
+def test_handoff_carries_product_refs_and_warns_without_them():
+    from lib import ai
+    brief = {"concept_name": "C", "recommended_format": "video", "aspect_ratio": "9:16",
+             "video_prompt": "vid", "image_prompt": "img", "visual_direction": "vd"}
+    with_refs = ai.higgsfield_handoff(brief, 1, ["https://cdn/x.jpg", "https://cdn/y.jpg"])
+    assert "https://cdn/x.jpg" in with_refs and "https://cdn/y.jpg" in with_refs
+    assert "do not redraw" in with_refs
+    assert "cost first" in with_refs           # don't spend credits silently
+    without = ai.higgsfield_handoff(brief, 1, [])
+    assert "none saved yet" in without and "invent a fake print" in without
+
+
+def test_remix_rules_forbid_describing_the_print():
+    from lib import ai
+    assert "NEVER describe its layout" in ai.REMIX_RULES
+    assert "reference image" in ai.REMIX_RULES

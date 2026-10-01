@@ -170,25 +170,38 @@ class RemixBrief(BaseModel):
     primary_text: str = Field(description="Ready-to-paste Meta primary text in our brand voice")
     visual_direction: str = Field(description="What the creative shows, shot by shot or layout by layout")
     image_prompt: str = Field(description=(
-        "Detailed prompt for an AI image model (Higgsfield / Nano Banana Pro) for a static ad: "
-        "subject, composition, lighting, props, on-image text in quotes, style, camera"))
+        "Prompt for an AI image model for a static ad. The real product photo is supplied as a "
+        "reference image, so describe ONLY the scene around it (setting, hands, props, light, "
+        "lens, mood) and the overlay text in quotes — never the print's own layout or wording."))
     video_prompt: str = Field(description=(
-        "Prompt/script for an AI video model (Higgsfield): 10-15s, scene-by-scene with timing, "
-        "camera moves, any spoken lines, on-screen text"))
+        "Prompt/script for an AI video model: 10-15s, scene-by-scene with timing, camera moves, "
+        "any spoken lines, and on-screen overlay text. The real product photo is supplied as a "
+        "reference image, so never describe the print's own layout or wording."))
     recommended_format: Literal["static image", "video", "carousel", "ugc video"]
     aspect_ratio: Literal["4:5", "9:16", "1:1"]
 
 
 REMIX_RULES = """
 Write an ORIGINAL ad for our brand inspired by the reference ad's angle and structure.
+
 Rules:
 - Borrow the strategy (angle, hook mechanic, structure, format) — never their brand name,
   logo, product, claims, reviews, characters or exact wording.
-- Our product must be clearly shown/described as it really is.
 - Don't invent review counts, awards, stats or discounts we didn't give you. If an offer helps,
   write it as [OFFER] for us to fill in.
-- Image/video prompts must describe OUR product in the scene (a printed A4/A3 keepsake print
-  or pack about a birth date), realistic, Meta-native, thumb-stopping.
+
+CRITICAL — how to write the image_prompt and video_prompt:
+Our real product photo WILL be supplied to the image/video model as a reference image. So:
+- Refer to the product as "the product in the reference image" / "the supplied print".
+  NEVER describe its layout, section names, headings, fonts, colours or any text printed on it.
+  Any such description makes the model invent a fake product that looks nothing like ours.
+- Do NOT put a sample birth date, headline, song, price or section list in the prompt.
+- Instead, describe only what surrounds the product and how it is shot: the setting, the hands
+  or people, props, light, lens, camera move, mood, and the on-screen OVERLAY text (captions
+  added on top of the video/image, which are fine to specify and should be in quotes).
+- Say explicitly: "keep the print exactly as in the reference image — do not alter, redraw or
+  re-letter its contents."
+- Keep it realistic, Meta-native and thumb-stopping.
 """
 
 
@@ -205,15 +218,27 @@ def remix_brief(ad: dict, breakdown: dict | None, profile: str, extra: str = "")
     return out.model_dump()
 
 
-def higgsfield_handoff(brief: dict, brief_id: int) -> str:
+def higgsfield_handoff(brief: dict, brief_id: int, product_refs=None, variations: int = 3) -> str:
     """A message to paste into a Claude session that has the Higgsfield MCP connected."""
     media = "video" if brief.get("recommended_format") in ("video", "ugc video") else "image"
     main_prompt = brief.get("video_prompt") if media == "video" else brief.get("image_prompt")
+    refs = [r for r in (product_refs or []) if r]
+    if refs:
+        ref_block = ("PRODUCT REFERENCE IMAGES (import these and pass them to the model as image "
+                     "references — the print must match them exactly):\n"
+                     + "\n".join(f"- {u}" for u in refs) + "\n\n")
+    else:
+        ref_block = ("PRODUCT REFERENCE IMAGES: none saved yet. Ask me to upload photos of the "
+                     "real product before generating, or the model will invent a fake print.\n\n")
     return (
         f"Using Higgsfield, create ad creative for The Day Archive — remix brief #{brief_id} "
         f"\"{brief.get('concept_name')}\".\n\n"
-        f"Format: {brief.get('recommended_format')}, aspect ratio {brief.get('aspect_ratio')}.\n"
-        f"Generate 3 variations of the {media}. Use our product photos if I upload them.\n\n"
+        f"Format: {brief.get('recommended_format')}, aspect ratio {brief.get('aspect_ratio')}. "
+        f"Generate {variations} variations of the {media}.\n\n"
+        f"{ref_block}"
+        f"Check the credit cost first and tell me before spending anything.\n"
+        f"Keep the product exactly as it appears in the reference images — do not redraw, "
+        f"re-letter or restyle the print itself.\n\n"
         f"PROMPT:\n{main_prompt}\n\n"
         f"VISUAL DIRECTION:\n{brief.get('visual_direction')}\n\n"
         + (f"STATIC VERSION PROMPT (also make 2 of these):\n{brief.get('image_prompt')}\n"

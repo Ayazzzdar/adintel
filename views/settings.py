@@ -19,6 +19,28 @@ with st.expander("🔑 Update keys", expanded=False):
         st.success("Keys updated")
         st.rerun()
 
+st.subheader("Product reference photos")
+st.caption("Real photos of the Birth Day Archive pack. Every remix brief passes these to the "
+           "image/video model so the creative shows **our** product instead of an invented one. "
+           "Paste direct image links (e.g. from your Shopify product page — right-click an "
+           "image → Copy image address).")
+refs = pipeline.get_product_refs()
+refs_text = st.text_area("Image URLs (one per line)", "\n".join(refs), height=120,
+                         placeholder="https://cdn.shopify.com/.../birth-day-archive-pack.jpg")
+if st.button("Save product photos"):
+    db.set_setting("product_refs", [u.strip() for u in refs_text.splitlines() if u.strip()])
+    st.success("Saved")
+    st.rerun()
+if refs:
+    cols = st.columns(min(len(refs), 4))
+    for i, url in enumerate(refs[:4]):
+        try:
+            cols[i].image(url, width="stretch")
+        except Exception:
+            cols[i].warning("Couldn't load this image")
+else:
+    st.warning("No product photos saved — briefs will warn you to add them before generating.")
+
 st.subheader("Brand profile")
 st.caption("Claude reads this every time it analyses an ad or writes a remix brief. The more "
            "specific, the better the output.")
