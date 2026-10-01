@@ -258,3 +258,14 @@ def test_discovery_saves_each_batch_before_a_later_failure(monkeypatch):
     saved = db.list_discovered()
     assert set(saved["page_id"]) == {"p1", "p2"}   # first two batches persisted
     assert len(db.all_ads()) == 2
+
+
+def test_null_text_columns_are_safe_to_concatenate():
+    """NULL text from the DB arrives as NaN, which is truthy — `or ""` is not enough."""
+    import pandas as pd
+    from lib import ui
+    row = pd.DataFrame([{"sample_title": None, "sample_body": None, "n": 1}]).iloc[0].to_dict()
+    assert ui.txt(row, "sample_body") == ""
+    assert ui.txt(row, "sample_title")[:280] + " — " + ui.txt(row, "sample_body")[:280] == " — "
+    assert ui.txt(row, "missing", "(none yet)") == "(none yet)"
+    assert ui.txt(row, "n") == "1"

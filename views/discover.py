@@ -77,16 +77,18 @@ with tab_brands:
         for _, r in view.head(40).iterrows():
             with st.container(border=True):
                 c1, c2, c3 = st.columns([1, 4, 1.3])
-                if r["sample_image"]:
+                r = r.to_dict()
+                if ui.txt(r, "sample_image"):
                     c1.image(r["sample_image"], width="stretch")
                 badge = {"competitor": "🎯 Competitor", "adjacent": "💡 Adjacent / inspo",
-                         "irrelevant": "🚫 Irrelevant"}.get(r["ai_verdict"], "")
+                         "irrelevant": "🚫 Irrelevant"}.get(ui.txt(r, "ai_verdict"), "")
                 c2.markdown(f"**{r['page_name']}** · relevance {r['relevance']:.0f} · {r['ad_count']} ads · "
-                            f"{r['landing_domain'] or ''} {badge}")
-                if r["ai_reason"]:
+                            f"{ui.txt(r, 'landing_domain')} {badge}")
+                if ui.txt(r, "ai_reason"):
                     c2.caption(r["ai_reason"])
-                c2.caption(f"Found via: {r['keywords']}")
-                c2.write((r["sample_title"] or "") + " — " + (r["sample_body"] or "")[:280])
+                c2.caption(f"Found via: {ui.txt(r, 'keywords')}")
+                c2.write(" — ".join(p for p in (ui.txt(r, "sample_title"),
+                                                ui.txt(r, "sample_body")[:280]) if p))
                 if c3.button("➕ Track (competitor)", key=f"tc-{r['page_id']}", width="stretch"):
                     pipeline.track_discovered(r["page_id"], "competitor")
                     st.rerun()

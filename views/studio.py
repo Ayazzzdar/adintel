@@ -50,7 +50,7 @@ for _, row in view.iterrows():
         t3.code(b["video_prompt"], language=None, wrap_lines=True)
 
         c1, c2, c3 = st.columns([3, 1, 1])
-        urls = c1.text_area("Generated creative links (one per line)", b.get("output_urls") or "",
+        urls = c1.text_area("Generated creative links (one per line)", ui.txt(b, "output_urls"),
                             key=f"u-{bid}", height=80)
         new_status = c2.selectbox("Status", STATUSES, STATUSES.index(b["status"]), key=f"st-{bid}")
         if c2.button("Save", key=f"sv-{bid}", width="stretch"):
@@ -59,7 +59,7 @@ for _, row in view.iterrows():
         if c3.button("🗑️ Delete", key=f"del-{bid}", width="stretch"):
             db.delete_brief(bid)
             st.rerun()
-        for link in [u.strip() for u in (b.get("output_urls") or "").splitlines() if u.strip()]:
+        for link in [u.strip() for u in ui.txt(b, "output_urls").splitlines() if u.strip()]:
             if link.lower().split("?")[0].endswith((".mp4", ".mov", ".webm")):
                 st.video(link)
             else:
@@ -77,7 +77,7 @@ else:
         lines += [f"## #{b['id']} {b['concept_name']} ({b['recommended_format']}, {b['aspect_ratio']})",
                   "", "Primary text:", b["primary_text"], "", "Headlines:"]
         lines += [f"- {h}" for h in _list(b["headlines"])]
-        lines += ["", "Creative:", b.get("output_urls") or "(none yet)", "", "---", ""]
+        lines += ["", "Creative:", ui.txt(b, "output_urls", "(none yet)"), "", "---", ""]
     pack = "\n".join(lines)
     st.download_button("⬇️ Download upload pack (.md)", pack, "day-archive-upload-pack.md")
     csv = ready[["id", "concept_name", "recommended_format", "aspect_ratio", "primary_text",

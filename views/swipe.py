@@ -22,14 +22,14 @@ for _, row in saved.iterrows():
             ui.show_media(r, thumb_b64=r.get("thumb_b64"))
             st.caption(f"{r['page_name']} · {r['display_format']} · since {r['start_date']} · "
                        f"{'🟢 live' if r['is_active'] else '⚫ off'}")
-            if r.get("ad_library_url"):
+            if ui.txt(r, "ad_library_url"):
                 st.link_button("Open in Ad Library ↗", r["ad_library_url"])
         with right:
-            if r.get("title"):
+            if ui.txt(r, "title"):
                 st.markdown(f"**{r['title']}**")
-            st.text((r.get("body") or "")[:1200])
-            note = st.text_input("Notes", r.get("note") or "", key=f"note-{ad_id}")
-            if note != (r.get("note") or ""):
+            st.text(ui.txt(r, "body")[:1200])
+            note = st.text_input("Notes", ui.txt(r, "note"), key=f"note-{ad_id}")
+            if note != ui.txt(r, "note"):
                 db.update_swipe_note(ad_id, note)
 
             breakdown = db.get_analysis(ad_id)

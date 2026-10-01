@@ -25,8 +25,15 @@ def setup(title: str):
 
 
 def _val(row, key):
+    """Row value, with pandas NaN normalised to None (NaN is truthy, so `or ""` misses it)."""
     v = row.get(key)
     return None if v is None or (isinstance(v, float) and pd.isna(v)) else v
+
+
+def txt(row, key, default="") -> str:
+    """Always a string — safe to slice and concatenate even when the column is NULL/NaN."""
+    v = _val(row, key)
+    return default if v is None else str(v)
 
 
 def show_media(row, thumb_b64=None):
