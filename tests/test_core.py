@@ -154,3 +154,13 @@ def test_direct_connection_hint_and_password_hidden():
     assert db.url_hint("postgresql://u:p@aws-0-ap.pooler.supabase.com:5432/postgres") is None
     msg = db.check_connection("postgresql://postgres:S3cret!@1@127.0.0.1:1/postgres")
     assert msg and "S3cret" not in msg
+
+
+def test_own_brand_never_stored_or_suggested(monkeypatch):
+    own = {**copy.deepcopy(VIDEO_AD), "ad_archive_id": "own1", "page_id": db.OWN_PAGE_ID,
+           "page_name": "The DAY archive"}
+    db.upsert_ads([normalize(own), normalize(VIDEO_AD)])
+    assert set(db.all_ads()["ad_archive_id"]) == {"1869351803954821"}
+    monkeypatch.setattr(apify, "run", lambda urls, **kw: [{**own, "url": u} for u in urls])
+    pipeline.run_discovery(["day you were born"], ["AU"])
+    assert db.list_discovered().empty

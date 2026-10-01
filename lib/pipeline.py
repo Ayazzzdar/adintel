@@ -65,7 +65,7 @@ def get_countries():
     return db.get_setting("discovery_countries", DEFAULT_COUNTRIES)
 
 
-OWN_PAGE_ID = "1110400352150378"  # The Day Archive's Facebook page
+OWN_PAGE_ID = db.OWN_PAGE_ID
 
 
 def seed_defaults():

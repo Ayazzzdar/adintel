@@ -282,14 +282,20 @@ def delete_brand(brand_id):
 
 # ---------- ads ----------
 
+# The Day Archive's own Facebook page: never stored, shown or suggested as a competitor.
+OWN_PAGE_ID = "1110400352150378"
+
+
 def upsert_ads(rows):
+    rows = [r for r in rows if str(r.get("page_id")) != OWN_PAGE_ID]
     upsert(ads, rows, "ad_archive_id", keep_on_update=("first_seen_at", "brand_id"))
 
 
 def all_ads() -> pd.DataFrame:
     q = select(ads, analysis.c.angle, analysis.c.creative_format, analysis.c.hook,
                analysis.c.awareness, analysis.c.why_it_works) \
-        .select_from(ads.outerjoin(analysis, ads.c.ad_archive_id == analysis.c.ad_archive_id))
+        .select_from(ads.outerjoin(analysis, ads.c.ad_archive_id == analysis.c.ad_archive_id)) \
+        .where(ads.c.page_id != OWN_PAGE_ID)
     return df(q)
 
 
