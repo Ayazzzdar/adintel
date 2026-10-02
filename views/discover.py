@@ -51,9 +51,11 @@ with tab_brands:
             st.error(str(e))
 
     candidates = db.list_discovered("new")
-    if b3.button("🧠 AI-check top 25 candidates", disabled=not ai.enabled() or candidates.empty,
-                 width="stretch"):
-        top = candidates[candidates["ai_verdict"].isna()].head(25)
+    unchecked = candidates[candidates["ai_verdict"].isna()] if not candidates.empty \
+        else candidates
+    if b3.button(f"🧠 AI-check next 25 ({len(unchecked)} unchecked)",
+                 disabled=not ai.enabled() or unchecked.empty, width="stretch"):
+        top = unchecked.head(25)
         try:
             with st.spinner("Classifying advertisers…"):
                 verdicts = ai.classify_candidates(top.to_dict("records"), pipeline.get_profile())
@@ -73,8 +75,14 @@ with tab_brands:
                                  ["competitor", "adjacent", "unchecked"])
         view = candidates[candidates["relevance"] >= min_rel]
         view = view[view["ai_verdict"].fillna("unchecked").isin(verdict)]
-        st.caption(f"{len(view)} candidate brands")
-        for _, r in view.head(40).iterrows():
+        per_page = 25
+        pages = max((len(view) - 1) // per_page + 1, 1)
+        page = st.number_input(f"Page (of {pages})", 1, pages, 1, key="cand-page") if pages > 1 else 1
+        shown = view.iloc[(page - 1) * per_page: page * per_page]
+        first = (page - 1) * per_page + 1
+        st.caption(f"{len(view)} candidate brands · showing {first}–{first + len(shown) - 1}, "
+                   f"highest relevance first")
+        for _, r in shown.iterrows():
             with st.container(border=True):
                 c1, c2, c3 = st.columns([1, 4, 1.3])
                 r = r.to_dict()
